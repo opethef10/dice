@@ -14,5 +14,7 @@
 
 ## Usage
 
-Run `main.py` in a directory with an image named `input.png`, when it is done it will output a file called `output.png`. Alternatively, you can type the file path as an argument and output will be in the same folder as the input path.
+- Install required libraries by `pip install -r requirements.txt`
+- Run `python __main__.py` in a directory with an image named `input.png`, when it is done it will output a file called `output.png`.
+- Alternatively, you can type the file path as an argument and output will be in the same folder as the input path.
 
