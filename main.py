@@ -1,65 +1,68 @@
-import cv2  # pip install opencv-python
+#! /usr/bin/env python
+
+import sys
+from pathlib import Path
+
+from PIL import Image
 import pygame as pg
-from math import ceil
+import yaml
 
-DIE_WIDTH = 25
-RESOLUTION_FACTOR = 2
+MAIN_DIR = Path(__file__).parent
+CONFIG_FILE = MAIN_DIR / "config.yaml"
 
-pg.init()
-img = cv2.imread('input.png', 0)
-HEIGHT, WIDTH = img.shape
-WIDTH *= RESOLUTION_FACTOR
-HEIGHT *= RESOLUTION_FACTOR
-DOT_RADIUS = DIE_WIDTH // 10
-GRID_WIDTH = WIDTH // DIE_WIDTH
-GRID_HEIGHT = HEIGHT // DIE_WIDTH
-w = pg.display.set_mode((GRID_WIDTH * DIE_WIDTH, GRID_HEIGHT * DIE_WIDTH))
+with CONFIG_FILE.open() as f:
+    config = yaml.safe_load(f)
 
-DOT_CENTERS = {
-    1: [(0, 0)],
-    2: [(1, -1), (-1, 1)],
-    3: [(1, -1), (0, 0), (-1, 1)],
-    4: [(-1, -1), (1, -1), (-1, 1), (1, 1)],
-    5: [(-1, -1), (1, -1), (-1, 1), (1, 1), (0, 0)],
-    6: [(-1, -1), (1, -1), (-1, 1), (1, 1), (-1, 0), (1, 0)]
-}
+DOT_MARGINS = (
+    (),
+    ((0, 0),),
+    ((1, -1), (-1, 1)),
+    ((1, -1), (0, 0), (-1, 1)),
+    ((-1, -1), (1, -1), (-1, 1), (1, 1)),
+    ((-1, -1), (1, -1), (-1, 1), (1, 1), (0, 0)),
+    ((-1, -1), (1, -1), (-1, 1), (1, 1), (-1, 0), (1, 0))
+)
 
-# Downscale image
-img = cv2.resize(img, (GRID_WIDTH, GRID_HEIGHT), interpolation=cv2.INTER_AREA)
+DIE_WIDTH = config["DIE_WIDTH"]
+DOT_RADIUS = config["DOT_RADIUS"]
+RESOLUTION_FACTOR = config["RESOLUTION_FACTOR"]
+DIE_MARGIN_FACTOR = DIE_WIDTH // config["DIE_MARGIN_DIVISOR"]
 
+DIE_COLOR = pg.Color(config["DIE_COLOR"])
+LINE_COLOR = pg.Color(config["LINE_COLOR"])
 
-def draw_dice():
+INPUT_PATH = MAIN_DIR / config["INPUT_PATH"] if not sys.argv[1:] else Path(sys.argv[1])
+OUTPUT_PATH = INPUT_PATH.with_stem(config["OUTPUT_STEM"])
+
+if __name__ == "__main__":
+    img = Image.open(INPUT_PATH).convert("L")
+    WIDTH = RESOLUTION_FACTOR * img.size[0]
+    HEIGHT = RESOLUTION_FACTOR * img.size[1]
+    GRID_WIDTH = WIDTH // DIE_WIDTH
+    GRID_HEIGHT = HEIGHT // DIE_WIDTH
+
+    pix = img.resize((GRID_WIDTH, GRID_HEIGHT)).load()
+    surface = pg.Surface((GRID_WIDTH * DIE_WIDTH, GRID_HEIGHT * DIE_WIDTH))
+
     for pixel_x in range(GRID_WIDTH):
         for pixel_y in range(GRID_HEIGHT):
-            brightness = img[pixel_y][pixel_x]
-
-            die_number = ceil(brightness / 42.5)  # Map to 1-6
+            brightness = pix[pixel_x, pixel_y]
+            dieValue = round(brightness / 42.5)
             
-            if die_number == 0:
-                continue
+            dieCenterX = round((pixel_x + 0.5) * DIE_WIDTH)
+            dieCenterY = round((pixel_y + 0.5) * DIE_WIDTH)
 
-            die_x = pixel_x*DIE_WIDTH + 0.5*DIE_WIDTH
-            die_y = pixel_y*DIE_WIDTH + 0.5*DIE_WIDTH
-
-            for dotCenter in DOT_CENTERS[die_number]:
-                dot_x = die_x + dotCenter[0]*DIE_WIDTH*0.25
-                dot_y = die_y + dotCenter[1]*DIE_WIDTH*0.25
-                pg.draw.circle(w, [255, 255, 255], (int(dot_x), int(dot_y)), DOT_RADIUS)
-
-
-def draw_lines():
+            for marginX, marginY in DOT_MARGINS[dieValue]:
+                coordX = dieCenterX + marginX * DIE_MARGIN_FACTOR
+                coordY = dieCenterY + marginY * DIE_MARGIN_FACTOR
+                pg.draw.circle(surface, DIE_COLOR, (coordX, coordY), DOT_RADIUS)
+            
     for i in range(GRID_WIDTH):
         x = i * DIE_WIDTH
-        pg.draw.line(w, [50, 50, 50], (x, 0), (x, HEIGHT))
+        pg.draw.line(surface, LINE_COLOR, (x, 0), (x, HEIGHT))
 
     for i in range(GRID_HEIGHT):
         y = i * DIE_WIDTH
-        pg.draw.line(w, [50, 50, 50], (0, y), (WIDTH, y))
+        pg.draw.line(surface, LINE_COLOR, (0, y), (WIDTH, y))
 
-
-if __name__ == '__main__':
-    draw_dice()
-    draw_lines()
-    pg.display.update()
-    pg.image.save(w, "output.png")
-    pg.quit()
+    pg.image.save(surface, OUTPUT_PATH)
